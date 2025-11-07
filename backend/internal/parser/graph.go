@@ -58,20 +58,22 @@ func buildNodeID(res models.ResourceState, instance models.ResourceInstance, ins
 		parts = append(parts, res.Module)
 	}
 
-	parts = append(parts, res.Type, res.Name)
+	name := res.Name
 
 	if len(res.Instances) > 1 {
 		key := instance.IndexKey
 		if key != nil {
 			val := reflect.ValueOf(key)
-			if val.Kind() == reflect.Ptr && !val.IsNil() {
+			if val.Kind() == reflect.Pointer && !val.IsNil() {
 				val = val.Elem()
 			}
-			parts = append(parts, fmt.Sprintf("[%v]", val.Interface()))
+			name = fmt.Sprintf("%s[%v]", name, val.Interface())
 		} else {
-			parts = append(parts, fmt.Sprintf("[%d]", instanceIndex))
+			name = fmt.Sprintf("%s[%d]", name, instanceIndex)
 		}
 	}
+
+	parts = append(parts, res.Type, name)
 
 	return strings.Join(parts, ".")
 }

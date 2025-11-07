@@ -105,8 +105,8 @@ func TestBuildGraph(t *testing.T) {
 		graph := BuildGraph(state)
 
 		assert.Len(t, graph.Nodes, 2)
-		assert.Equal(t, "aws_subnet.private.[0]", graph.Nodes[0].ID)
-		assert.Equal(t, "aws_subnet.private.[1]", graph.Nodes[1].ID)
+		assert.Equal(t, "aws_subnet.private[0]", graph.Nodes[0].ID)
+		assert.Equal(t, "aws_subnet.private[1]", graph.Nodes[1].ID)
 	})
 
 	t.Run("duplicate nodes are not added", func(t *testing.T) {
@@ -286,8 +286,8 @@ func TestBuildNodeID(t *testing.T) {
 		id0 := buildNodeID(res, res.Instances[0], 0)
 		id1 := buildNodeID(res, res.Instances[1], 1)
 
-		assert.Equal(t, "aws_subnet.private.[0]", id0)
-		assert.Equal(t, "aws_subnet.private.[1]", id1)
+		assert.Equal(t, "aws_subnet.private[0]", id0)
+		assert.Equal(t, "aws_subnet.private[1]", id1)
 	})
 
 	t.Run("single instance does not add index", func(t *testing.T) {
@@ -317,8 +317,8 @@ func TestBuildNodeID(t *testing.T) {
 		id0 := buildNodeID(res, res.Instances[0], 0)
 		id1 := buildNodeID(res, res.Instances[1], 1)
 
-		assert.Equal(t, "aws_security_group.sg.[frontend]", id0)
-		assert.Equal(t, "aws_security_group.sg.[backend]", id1)
+		assert.Equal(t, "aws_security_group.sg[frontend]", id0)
+		assert.Equal(t, "aws_security_group.sg[backend]", id1)
 	})
 }
 
