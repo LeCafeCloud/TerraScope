@@ -43,10 +43,11 @@ export default function ControlPanel({
 
             <div className="space-y-6">
                 <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label htmlFor="provider" aria-label="Provider" className="block text-sm font-medium text-gray-300 mb-2">
                         Provider
                     </label>
                     <select
+                        id="provider"
                         value={filters.provider}
                         onChange={(e) =>
                             onFiltersChange({ ...filters, provider: e.target.value })
@@ -63,10 +64,11 @@ export default function ControlPanel({
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label htmlFor="module" aria-label="Module" className="block text-sm font-medium text-gray-300 mb-2">
                         Module
                     </label>
                     <select
+                        id="module"
                         value={filters.module}
                         onChange={(e) =>
                             onFiltersChange({ ...filters, module: e.target.value })
@@ -83,10 +85,11 @@ export default function ControlPanel({
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <label htmlFor="mode" aria-label="Mode" className="block text-sm font-medium text-gray-300 mb-2">
                         Mode
                     </label>
                     <select
+                        id="mode"
                         value={filters.mode}
                         onChange={(e) =>
                             onFiltersChange({ ...filters, mode: e.target.value })

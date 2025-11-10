@@ -33,7 +33,7 @@ export async function parseTerraformState(file: File): Promise<Graph> {
         try {
             JSON.parse(fileContent);
         } catch {
-            throw new ApiError('Invalid JSON file');
+            throw new Error('Invalid JSON file');
         }
 
         const response = await fetch(`${API_BASE_URL}/parse`, {
@@ -55,16 +55,24 @@ export async function parseTerraformState(file: File): Promise<Graph> {
 
         const graph: Graph = await response.json();
         if (!graph.nodes || !Array.isArray(graph.nodes)) {
-            throw new ApiError('Invalid response: missing nodes array');
+            throw new Error('Invalid response: missing nodes array');
         }
 
         if (!graph.edges || !Array.isArray(graph.edges)) {
-            throw new ApiError('Invalid response: missing edges array');
+            throw new Error('Invalid response: missing edges array');
         }
 
         return graph;
     } catch (error) {
-        if (error instanceof ApiError) throw error;
+        if (error instanceof ApiError) {
+            throw error;
+        }
+        if (error instanceof Error && (
+            error.message === 'Invalid JSON file' ||
+            error.message.startsWith('Invalid response:')
+        )) {
+            throw error;
+        }
         throw new ApiError('Failed to parse Terraform state', undefined, error);
     }
 }

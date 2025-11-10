@@ -35,7 +35,7 @@ export default function ConstellationView({
     const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
     const controlsRef = useRef<OrbitControls | null>(null);
     const nodeObjectsRef = useRef<Map<string, THREE.Mesh>>(new Map());
-
+    const edgeObjectsRef = useRef<THREE.Line[]>([]);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -67,12 +67,20 @@ export default function ConstellationView({
         controls.dampingFactor = 0.05;
         controlsRef.current = controls;
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2); // Increased intensity
         scene.add(ambientLight);
 
-        const pointLight = new THREE.PointLight(0xffffff, 1);
-        pointLight.position.set(100, 100, 100);
-        scene.add(pointLight);
+        const pointLight1 = new THREE.PointLight(0xffffff, 1.5);
+        pointLight1.position.set(200, 200, 200);
+        scene.add(pointLight1);
+
+        const pointLight2 = new THREE.PointLight(0x8b5cf6, 1);
+        pointLight2.position.set(-200, -200, 200);
+        scene.add(pointLight2);
+
+        const pointLight3 = new THREE.PointLight(0xffffff, 0.8);
+        pointLight3.position.set(0, -200, -200);
+        scene.add(pointLight3);
 
         addStarField(scene);
 
@@ -110,6 +118,8 @@ export default function ConstellationView({
 
         nodeObjects.forEach((obj) => scene.remove(obj));
         nodeObjects.clear();
+        edgeObjectsRef.current.forEach((line) => scene.remove(line));
+        edgeObjectsRef.current = [];
 
         const filteredNodes = graph.nodes.filter((node) => {
             if (filters.provider && node.provider !== filters.provider) return false;
@@ -126,17 +136,29 @@ export default function ConstellationView({
 
         const filteredNodeIds = new Set(filteredNodes.map((n) => n.id));
         graph.edges.forEach((edge) => {
-            if (
-                filteredNodeIds.has(edge.source) &&
-                filteredNodeIds.has(edge.target)
-            ) {
+            if (filteredNodeIds.has(edge.source) && filteredNodeIds.has(edge.target)) {
                 const sourceObj = nodeObjects.get(edge.source);
                 const targetObj = nodeObjects.get(edge.target);
                 if (sourceObj && targetObj) {
                     const line = createEdgeObject(sourceObj, targetObj, edge.type);
+
+                    line.userData = {
+                        sourceId: edge.source,
+                        targetId: edge.target,
+                        edgeType: edge.type,
+                    };
+
                     scene.add(line);
+                    edgeObjectsRef.current.push(line);
                 }
             }
+        });
+
+        edgeObjectsRef.current.forEach((line) => {
+            const edgeType = line.userData.edgeType;
+            const defaultColor = edgeType === 'depends_on' ? 0x8b5cf6 : 0x6b7280;
+            (line.material as THREE.LineBasicMaterial).color.setHex(defaultColor);
+            (line.material as THREE.LineBasicMaterial).opacity = 0.6;
         });
     }, [graph, filters]);
 
@@ -149,8 +171,9 @@ export default function ConstellationView({
                 material.emissive.setHex(0xffffff);
                 material.emissiveIntensity = 0.5;
             } else {
-                material.emissive.setHex(0x000000);
-                material.emissiveIntensity = 0;
+                const originalColor = (obj.material as THREE.MeshStandardMaterial).color.getHex();
+                material.emissive.setHex(originalColor);
+                material.emissiveIntensity = 0.5;
             }
         });
     }, [selectedNodeId]);
@@ -158,13 +181,25 @@ export default function ConstellationView({
     useEffect(() => {
         const renderer = rendererRef.current;
         const camera = cameraRef.current;
-        if (!renderer || !camera) return;
+        const controls = controlsRef.current;
+        if (!renderer || !camera || !controls) return;
 
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
+        let isDragging = false;
 
-        const handleClick = (event: MouseEvent) => {
-            if (!containerRef.current) return;
+        controls.addEventListener('start', () => {
+            isDragging = true;
+        });
+
+        controls.addEventListener('end', () => {
+            setTimeout(() => {
+                isDragging = false;
+            }, 0);
+        });
+
+        const handlePointerUp = (event: PointerEvent) => {
+            if (!containerRef.current || isDragging) return;
 
             const rect = containerRef.current.getBoundingClientRect();
             mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -186,13 +221,17 @@ export default function ConstellationView({
             }
         };
 
-        renderer.domElement.addEventListener('click', handleClick);
-        return () => renderer.domElement.removeEventListener('click', handleClick);
+        renderer.domElement.addEventListener('pointerup', handlePointerUp);
+
+        return () => {
+            controls.removeEventListener('start', () => (isDragging = true));
+            controls.removeEventListener('end', () => (isDragging = false));
+            renderer.domElement.removeEventListener('pointerup', handlePointerUp);
+        };
     }, [onNodeClick]);
 
     return (
-        <div ref={containerRef} className="w-full h-full">
-        </div>
+        <div ref={containerRef} className="w-full h-full" />
     );
 }
 
@@ -208,9 +247,7 @@ function createNodeObject(
     const x = radius * Math.cos(theta) * Math.sin(phi);
     const y = radius * Math.sin(theta) * Math.sin(phi);
     const z = radius * Math.cos(phi);
-
-    const size = node.mode === 'managed' ? 8 : 5;
-
+    const size = node.mode === 'managed' ? 12 : 8;
     const color =
         PROVIDER_COLORS[node.provider.toLowerCase()] || PROVIDER_COLORS.default;
 
@@ -218,13 +255,23 @@ function createNodeObject(
     const material = new THREE.MeshStandardMaterial({
         color,
         emissive: color,
-        emissiveIntensity: 0.2,
-        metalness: 0.5,
-        roughness: 0.5,
+        emissiveIntensity: 0.5,
+        metalness: 0.3,
+        roughness: 0.3,
     });
 
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(x, y, z);
+    mesh.userData = { nodeId: node.id };
+
+    const glowGeometry = new THREE.SphereGeometry(size * 1.3, 16, 16);
+    const glowMaterial = new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0.2,
+    });
+    const glow = new THREE.Mesh(glowGeometry, glowMaterial);
+    mesh.add(glow);
 
     return mesh;
 }
@@ -237,11 +284,12 @@ function createEdgeObject(
     const points = [source.position, target.position];
     const geometry = new THREE.BufferGeometry().setFromPoints(points);
 
-    const color = edgeType === 'depends_on' ? 0x8b5cf6 : 0x4b5563;
+    const color = edgeType === 'depends_on' ? 0x8b5cf6 : 0x6b7280;
     const material = new THREE.LineBasicMaterial({
         color,
-        opacity: 0.3,
+        opacity: 0.6,
         transparent: true,
+        linewidth: 2,
     });
 
     return new THREE.Line(geometry, material);
@@ -249,7 +297,7 @@ function createEdgeObject(
 
 function addStarField(scene: THREE.Scene) {
     const starGeometry = new THREE.BufferGeometry();
-    const starCount = 1000;
+    const starCount = 2000;
     const positions = new Float32Array(starCount * 3);
 
     for (let i = 0; i < starCount * 3; i += 3) {
@@ -263,11 +311,29 @@ function addStarField(scene: THREE.Scene) {
         new THREE.BufferAttribute(positions, 3)
     );
 
+    const canvas = document.createElement('canvas');
+    canvas.width = 32;
+    canvas.height = 32;
+    const ctx = canvas.getContext('2d')!;
+
+    const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+    gradient.addColorStop(0, 'rgba(255, 255, 255, 1)');
+    gradient.addColorStop(0.4, 'rgba(255, 255, 255, 0.8)');
+    gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 32, 32);
+
+    const texture = new THREE.CanvasTexture(canvas);
+
     const starMaterial = new THREE.PointsMaterial({
         color: 0xffffff,
-        size: 1,
+        size: 2,
         transparent: true,
-        opacity: 0.8,
+        opacity: 0.6,
+        map: texture,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
     });
 
     const stars = new THREE.Points(starGeometry, starMaterial);
