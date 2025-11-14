@@ -36,6 +36,7 @@ export default function ConstellationView({
     const controlsRef = useRef<OrbitControls | null>(null);
     const nodeObjectsRef = useRef<Map<string, THREE.Mesh>>(new Map());
     const edgeObjectsRef = useRef<THREE.Line[]>([]);
+    const isDraggingRef = useRef(false);
 
     useEffect(() => {
         if (!containerRef.current) return;
@@ -67,7 +68,7 @@ export default function ConstellationView({
         controls.dampingFactor = 0.05;
         controlsRef.current = controls;
 
-        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2); // Increased intensity
+        const ambientLight = new THREE.AmbientLight(0xffffff, 1.2);
         scene.add(ambientLight);
 
         const pointLight1 = new THREE.PointLight(0xffffff, 1.5);
@@ -83,6 +84,28 @@ export default function ConstellationView({
         scene.add(pointLight3);
 
         addStarField(scene);
+
+        let startX = 0;
+        let startY = 0;
+
+        const handlePointerDown = (event: PointerEvent) => {
+            startX = event.clientX;
+            startY = event.clientY;
+            isDraggingRef.current = false;
+        };
+
+        const handlePointerMove = (event: PointerEvent) => {
+            const dx = event.clientX - startX;
+            const dy = event.clientY - startY;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+
+            if (distance > 5) {
+                isDraggingRef.current = true;
+            }
+        };
+
+        renderer.domElement.addEventListener('pointerdown', handlePointerDown);
+        renderer.domElement.addEventListener('pointermove', handlePointerMove);
 
         const handleResize = () => {
             if (!containerRef.current || !camera || !renderer) return;
@@ -104,9 +127,13 @@ export default function ConstellationView({
         animate();
 
         return () => {
+            renderer.domElement.removeEventListener('pointerdown', handlePointerDown);
+            renderer.domElement.removeEventListener('pointermove', handlePointerMove);
             window.removeEventListener('resize', handleResize);
             renderer.dispose();
-            containerRef.current?.removeChild(renderer.domElement);
+            if (containerRef.current && renderer.domElement.parentNode) {
+                containerRef.current.removeChild(renderer.domElement);
+            }
         };
     }, []);
 
@@ -181,40 +208,72 @@ export default function ConstellationView({
     useEffect(() => {
         const renderer = rendererRef.current;
         const camera = cameraRef.current;
-        const controls = controlsRef.current;
-        if (!renderer || !camera || !controls) return;
-
-        const raycaster = new THREE.Raycaster();
-        const mouse = new THREE.Vector2();
-        let isDragging = false;
-
-        controls.addEventListener('start', () => {
-            isDragging = true;
-        });
-
-        controls.addEventListener('end', () => {
-            setTimeout(() => {
-                isDragging = false;
-            }, 0);
-        });
+        const scene = sceneRef.current;
+        if (!renderer || !camera || !scene || !containerRef.current) return;
 
         const handlePointerUp = (event: PointerEvent) => {
-            if (!containerRef.current || isDragging) return;
+            if (!containerRef.current || isDraggingRef.current) {
+                return;
+            }
 
             const rect = containerRef.current.getBoundingClientRect();
-            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            const mouse = new THREE.Vector2();
+            mouse.x = (x / rect.width) * 2 - 1;
+            mouse.y = -(y / rect.height) * 2 + 1;
 
-            raycaster.setFromCamera(mouse, camera);
-            const objects = Array.from(nodeObjectsRef.current.values());
-            const intersects = raycaster.intersectObjects(objects);
+            camera.updateMatrix();
+            camera.updateMatrixWorld(true);
+            camera.updateProjectionMatrix();
 
-            if (intersects.length > 0) {
-                const clicked = intersects[0].object as THREE.Mesh;
-                const nodeId = Array.from(nodeObjectsRef.current.entries()).find(
-                    ([_, obj]) => obj === clicked
-                )?.[0];
+            const allMeshes: THREE.Mesh[] = [];
+            scene.traverse((object) => {
+                if (object instanceof THREE.Mesh && object.geometry instanceof THREE.SphereGeometry) {
+                    if (object.userData?.nodeId) {
+                        allMeshes.push(object);
+                    }
+                }
+            });
 
+            let closestMesh: THREE.Mesh | null = null;
+            let closestDistance = Infinity;
+
+            for (const mesh of allMeshes) {
+                mesh.updateMatrixWorld(true);
+
+                const worldPos = new THREE.Vector3();
+                mesh.getWorldPosition(worldPos);
+                const screenPos = worldPos.clone();
+                screenPos.project(camera);
+
+                const dx = screenPos.x - mouse.x;
+                const dy = screenPos.y - mouse.y;
+                const screenDist = Math.sqrt(dx * dx + dy * dy);
+
+                if (screenDist < closestDistance) {
+                    closestDistance = screenDist;
+                    closestMesh = mesh;
+                }
+            }
+
+            let threshold = 1;
+            if (closestMesh !== null) {
+                const geometry = (closestMesh as THREE.Mesh).geometry as THREE.SphereGeometry;
+                const sphereRadius = geometry.parameters.radius;
+                const worldPos = new THREE.Vector3();
+                (closestMesh as THREE.Mesh).getWorldPosition(worldPos);
+                const distanceToCamera = camera.position.distanceTo(worldPos);
+
+                const fovRadians = (camera.fov * Math.PI) / 180;
+                const apparentHeight = 2 * Math.tan(fovRadians / 2) * distanceToCamera;
+                const apparentSize = (sphereRadius * 2) / apparentHeight;
+
+                threshold = Math.max(apparentSize * 2, 1);
+            }
+
+            if (closestMesh !== null && closestDistance < threshold) {
+                const nodeId = (closestMesh as THREE.Mesh).userData?.nodeId;
                 if (nodeId) {
                     onNodeClick(nodeId);
                 }
@@ -224,8 +283,6 @@ export default function ConstellationView({
         renderer.domElement.addEventListener('pointerup', handlePointerUp);
 
         return () => {
-            controls.removeEventListener('start', () => (isDragging = true));
-            controls.removeEventListener('end', () => (isDragging = false));
             renderer.domElement.removeEventListener('pointerup', handlePointerUp);
         };
     }, [onNodeClick]);
@@ -247,7 +304,7 @@ function createNodeObject(
     const x = radius * Math.cos(theta) * Math.sin(phi);
     const y = radius * Math.sin(theta) * Math.sin(phi);
     const z = radius * Math.cos(phi);
-    const size = node.mode === 'managed' ? 12 : 8;
+    const size = node.mode === 'managed' ? 20 : 15;
     const color =
         PROVIDER_COLORS[node.provider.toLowerCase()] || PROVIDER_COLORS.default;
 
