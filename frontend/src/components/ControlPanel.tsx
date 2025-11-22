@@ -1,6 +1,6 @@
 import { Filter } from 'lucide-react';
 import { Graph } from '../types/api';
-import { useMemo } from 'react';
+import { useMemo, useCallback, memo } from 'react';
 
 interface ControlPanelProps {
     graph: Graph;
@@ -12,27 +12,39 @@ interface ControlPanelProps {
     onFiltersChange: (filters: any) => void;
 }
 
-export default function ControlPanel({
+function ControlPanel({
     graph,
     filters,
     onFiltersChange,
 }: ControlPanelProps) {
-    const providers = useMemo(() => {
-        const unique = new Set(graph.nodes.map((n) => n.provider));
-        return Array.from(unique).sort();
+    const { providers, modules, modes } = useMemo(() => {
+        const providerSet = new Set<string>();
+        const moduleSet = new Set<string>();
+        const modeSet = new Set<string>();
+
+        graph.nodes.forEach((n) => {
+            providerSet.add(n.provider);
+            if (n.module) {
+                moduleSet.add(n.module);
+            }
+
+            modeSet.add(n.mode);
+        });
+
+        return {
+            providers: Array.from(providerSet).sort(),
+            modules: Array.from(moduleSet).sort(),
+            modes: Array.from(modeSet).sort(),
+        };
     }, [graph]);
 
-    const modules = useMemo(() => {
-        const unique = new Set(
-            graph.nodes.map((n) => n.module).filter((m) => m)
-        );
-        return Array.from(unique).sort();
-    }, [graph]);
+    const handleFilterChange = useCallback((key: string, value: string) => {
+        onFiltersChange({ ...filters, [key]: value });
+    }, [filters, onFiltersChange]);
 
-    const modes = useMemo(() => {
-        const unique = new Set(graph.nodes.map((n) => n.mode));
-        return Array.from(unique).sort();
-    }, [graph]);
+    const handleReset = useCallback(() => {
+        onFiltersChange({ provider: '', module: '', mode: '' });
+    }, [onFiltersChange]);
 
     return (
         <div className="w-80 bg-gray-900/50 backdrop-blur-sm border-r border-gray-800 p-6 overflow-y-auto">
@@ -50,7 +62,7 @@ export default function ControlPanel({
                         id="provider"
                         value={filters.provider}
                         onChange={(e) =>
-                            onFiltersChange({ ...filters, provider: e.target.value })
+                            handleFilterChange('provider', e.target.value)
                         }
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
                     >
@@ -71,7 +83,7 @@ export default function ControlPanel({
                         id="module"
                         value={filters.module}
                         onChange={(e) =>
-                            onFiltersChange({ ...filters, module: e.target.value })
+                            handleFilterChange('provider', e.target.value)
                         }
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
                     >
@@ -92,7 +104,7 @@ export default function ControlPanel({
                         id="mode"
                         value={filters.mode}
                         onChange={(e) =>
-                            onFiltersChange({ ...filters, mode: e.target.value })
+                            handleFilterChange('mode', e.target.value)
                         }
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-violet-500"
                     >
@@ -106,9 +118,7 @@ export default function ControlPanel({
                 </div>
 
                 <button
-                    onClick={() =>
-                        onFiltersChange({ provider: '', module: '', mode: '' })
-                    }
+                    onClick={handleReset}
                     className="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg px-4 py-2 text-sm font-medium text-gray-300 transition-colors"
                 >
                     Reset Filters
@@ -163,3 +173,5 @@ export default function ControlPanel({
         </div>
     );
 }
+
+export default memo(ControlPanel);
