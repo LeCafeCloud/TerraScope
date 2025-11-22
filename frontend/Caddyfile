@@ -1,4 +1,6 @@
-:3000 {
+{$DOMAIN_NAME::3000} {
+    bind 0.0.0.0
+
     root * /srv
     encode gzip
 
