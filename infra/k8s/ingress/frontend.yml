@@ -5,7 +5,7 @@ metadata:
   namespace: terrascope
 spec:
   rules:
-    - host: terrascope.changeme.example
+    - host: terrascope.cloud
       http:
         paths:
           - path: /api
