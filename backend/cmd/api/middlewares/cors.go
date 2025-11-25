@@ -1,7 +1,9 @@
-package middleware
+// Package middlewares provides HTTP middleware functions for request processing,
+// including authentication, logging, rate limiting, and other cross-cutting concerns
+// that wrap HTTP handlers.
+package middlewares
 
 import (
-	"log"
 	"net/http"
 	"os"
 )

@@ -8,16 +8,16 @@ import (
 	"net/http"
 
 	"github.com/terrascope/core/internal/handlers"
-	"github.com/terrascope/core/cmd/api/middleware"
+	"github.com/terrascope/core/cmd/api/middlewares"
 )
 
 func main() {
-  mux := http.NewServeMux()
+	mux := http.NewServeMux()
 
-  mux.HandleFunc("/health", handlers.HealthHandler)
-  mux.HandleFunc("/parse", handlers.ParseHandler)
+	mux.HandleFunc("/health", handlers.HealthHandler)
+	mux.HandleFunc("/parse", handlers.ParseHandler)
 
-	handler := middleware.Cors(mux)
+	handler := middlewares.Cors(mux)
 
 	log.Printf("🚀 Server starting on 8080")
 	log.Fatal(http.ListenAndServe(":8080", handler))
