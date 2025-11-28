@@ -127,7 +127,7 @@ jobs:
             exit 0
           fi
 
-          git commit -m "🚀 Deploy: Update images to ${{ needs.deploy.outputs.image-tag }} [skip ci]
+          git commit -m "chore(release): update images to ${{ needs.deploy.outputs.image-tag }} [skip ci]
 
           - Backend: terrascope-backend:${{ needs.deploy.outputs.image-tag }}
           - Frontend: terrascope-frontend:${{ needs.deploy.outputs.image-tag }}
@@ -146,7 +146,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               commit_sha: context.sha,
-              body: `🚀 **Terrascope Deployment Initiated**
+              body: `**Terrascope Deployment Initiated**
               
               **Image Tag:** \`${{ needs.deploy.outputs.image-tag }}\`
               
