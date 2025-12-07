@@ -2,7 +2,7 @@
 
 # Terrascope
 
-A web app that turns your **Terraform state into an interactive constellation**.  
+Turn your **IaC state into an interactive constellation**.  
 Resources become planets, modules become galaxies, and dependencies form orbital links.
 
 ### Visual Mappings
